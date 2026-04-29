@@ -1,0 +1,175 @@
+---
+title: "The United States of Oreo"
+output: 
+---
+
+# The United States of Oreo
+
+In the year 2026 Nabisco launched a sweepstakes, challenging the world to guess how many Oreo cookies it will take to completely cover the US Landmass. This R Markdown Document exists to document methods of calculating the answer.
+
+```{r}
+# Loading Libraries 
+library(tigris)
+library(sf)
+library(dplyr)
+library(ggplot2)
+library(spatstat.geom)
+library(terra)
+
+```
+
+# Defining the U.S
+
+For the boundaries of the US we use the US Census Bureaus tiger dataset at 500k resultion.
+
+US Territories have been excluded. This calcuation will only include the 50 US States.
+
+```{r}
+
+us_states <- states()
+
+exclude_stusps <- c('AS', 
+                    'GU', 
+                    'MP', 
+                    'VI', 
+                    'PR') # American Samoa, Guam, Mariana Islands, Virgin Islands, Puerto Rico
+
+us_states <- us_states %>%
+  filter(!STUSPS %in% exclude_stusps)
+
+ggplot(data = us_states) +
+  geom_sf() +
+  theme_classic()
+
+# Dissolve state boundaries
+
+us_states <- us_states %>%
+  summarize(geometry = st_union(geometry))
+
+ggplot(data = us_states) +
+  geom_sf() +
+  theme_classic()
+
+```
+
+# Transform into an equal area projection for higher accuracy
+
+```{r}
+# Print current CRS
+st_crs(us_states)
+
+us_states <- st_transform(us_states, 5070)
+
+ggplot(data = us_states) +
+  geom_sf() +
+  theme_classic()
+```
+
+# Calculate Needed Oreos
+
+```{r}
+
+#  Get Area of US
+A_us = st_area(us_states)
+print(paste0('Area of US: ', A_us, ' m^2'))
+
+# Calculate Area of Oreo 
+
+## 1.8 inches in Diameter: https://onesweetmama.com/how-big-is-an-oreo/
+## A = pi * r2
+
+d_oreo_in = 1.75 
+r_oreo_in = d_oreo_in/2
+A_oreo_in2 = pi * r_oreo_in^2
+
+# Convert to m^2
+in_to_m = 0.0254 
+sq_in_to_sq_m = in_to_m ^2 
+
+A_oreo_m2 = A_oreo_in2 * sq_in_to_sq_m
+print(paste0('Area of an Oreo', A_oreo_m2, ' m^2'))
+
+# Calculate Number of Oreoes needed 
+needed_oreos = A_us / A_oreo_m2
+needed_oreos
+```
+
+## Adjust for Open water
+
+```{r}
+
+nlcd_lc_path <- "/home/brendan/Documents/united_states_of_oreo/data/Annual_NLCD_LndCov_2023_CU_C1V0/Annual_NLCD_LndCov_2023_CU_C1V0.tif"
+nlcd_lc <- rast(nlcd_lc_path)
+
+# clip and project
+
+# create frequency table
+freq_table <- freq(nlcd_lc)
+
+water_pixels <- freq_table[freq_table$value == 11, "count"]
+
+pixel_area <- res(nlcd_lc)[1] * res(nlcd_lc)[2]
+
+water_area_m2 <- water_pixels * pixel_area
+
+water_area_m2
+
+
+```
+
+## Adjust for Roads
+
+```{r}
+
+nlcd_id_path <- "/home/brendan/Documents/united_states_of_oreo/data/Annual_NLCD_ImpDsc_2023_CU_C1V0/Annual_NLCD_ImpDsc_2023_CU_C1V0.tif"
+nlcd_id <- rast(nlcd_id_path)
+
+# clip and project
+
+# create frequency table
+freq_table <- freq(nlcd_id)
+
+road_pixels <- freq_table[freq_table$value == 1, "count"]
+
+pixel_area <- res(nlcd_id)[1] * res(nlcd_id)[2]
+
+roads_area_m2 <- road_pixels * pixel_area
+
+roads_area_m2
+
+
+```
+
+## Adjust for Trees
+
+## Adjust for Buildings
+
+construction-physics.com estimates the building Square footage in the US to be 340 billion square feet
+
+<https://www.construction-physics.com/p/every-building-in-america-an-analysis>
+
+```{r}
+
+building_area_sq_ft <- 3.4e11
+building_area_m2 <- building_area_sq_ft * 0.09290304
+
+```
+
+## Final answer
+
+```{r}
+A_us <- as.numeric(A_us)
+adjusted_area = A_us - water_area_m2 - roads_area_m2 - building_area_m2
+
+adjusted_oreo_count = adjusted_area / oreo_hex_area_m
+
+adjusted_oreo_count
+
+
+```
+
+```{r}
+
+
+
+```
