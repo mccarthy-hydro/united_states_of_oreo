@@ -25,7 +25,7 @@ knitr::include_graphics("data/sweepstakes_announcement.png")
 
 For the boundaries of the US we use the US Census Bureaus tiger dataset
 
-```{r, message=FALSE}
+```{r, message=FALSE, }
 
 us_states <- states()
 
